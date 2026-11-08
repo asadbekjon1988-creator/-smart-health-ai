@@ -1,0 +1,25 @@
+name: Daily Smart Health AI report
+
+on:
+  schedule:
+    # 08:00 Uzbekistan time (UTC+5)
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request daily Telegram report
+        env:
+          APP_URL: ${{ secrets.RENDER_APP_URL }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$API_TOKEN" ]; then
+            echo "Set RENDER_APP_URL and API_TOKEN in GitHub Actions secrets."
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $API_TOKEN" \
+            "$APP_URL/api/v1/daily-report"
