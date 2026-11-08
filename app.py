@@ -134,6 +134,75 @@ def latest_health_data():
     return jsonify({"readings": [dict(row) for row in rows]})
 
 
+def send_telegram_message(text):
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not bot_token or not chat_id:
+        raise RuntimeError("Configure TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.")
+    from urllib.request import Request, urlopen
+
+    body = json.dumps({"chat_id": chat_id, "text": text}).encode("utf-8")
+    req = Request(
+        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(req, timeout=15) as response:
+        result = json.loads(response.read().decode("utf-8"))
+    if not result.get("ok"):
+        raise RuntimeError("Telegram did not accept the message.")
+
+
+@app.post("/api/v1/daily-report")
+def daily_report():
+    if not authorized():
+        return jsonify({"error": "Unauthorized."}), 401
+
+    with get_db() as connection:
+        rows = connection.execute(
+            """
+            SELECT h.metric, h.value, h.recorded_at
+            FROM health_readings h
+            JOIN (
+                SELECT metric, MAX(id) AS latest_id
+                FROM health_readings
+                GROUP BY metric
+            ) latest ON latest.latest_id = h.id
+            ORDER BY h.metric
+            """
+        ).fetchall()
+
+    labels = {
+        "steps": ("Qadamlar", " qadam"),
+        "sleep_duration_minutes": ("Uyqu davomiyligi", " daqiqa"),
+        "resting_heart_rate_bpm": ("Tinch holatdagi yurak urishi", " bpm"),
+    }
+    lines = ["Smart Health AI — kunlik hisobot"]
+    if not rows:
+        lines.append("Hozircha Health Connect ma’lumotlari kelmagan.")
+    else:
+        for row in rows:
+            label, unit = labels[row["metric"]]
+            value = row["value"]
+            if row["metric"] == "sleep_duration_minutes":
+                hours = int(value) // 60
+                minutes = int(value) % 60
+                display = f"{hours} soat {minutes} daqiqa"
+            else:
+                display = f"{value:g}{unit}"
+            lines.append(f"{label}: {display}")
+        lines.append("Bu ma’lumotga asoslangan umumiy wellness hisoboti, tashxis emas.")
+
+    try:
+        send_telegram_message("\\n".join(lines))
+    except Exception:
+        app.logger.exception("Telegram report delivery failed")
+        return jsonify({"error": "Telegram delivery failed. Check bot settings."}), 502
+
+    return jsonify({"sent": True, "metrics_count": len(rows)})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
     app.run(host="0.0.0.0", port=port)
