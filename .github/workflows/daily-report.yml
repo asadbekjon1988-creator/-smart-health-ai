@@ -5,6 +5,9 @@ on:
     # 08:00 Uzbekistan time (UTC+5)
     - cron: "0 3 * * *"
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/daily-report.yml'
 
 jobs:
   send-report:
