@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "uz.smarthealthai"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "uz.smarthealthai"
