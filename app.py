@@ -195,7 +195,7 @@ def daily_report():
         lines.append("Bu ma’lumotga asoslangan umumiy wellness hisoboti, tashxis emas.")
 
     try:
-        send_telegram_message("\\n".join(lines))
+        send_telegram_message("\n".join(lines))
     except Exception:
         app.logger.exception("Telegram report delivery failed")
         return jsonify({"error": "Telegram delivery failed. Check bot settings."}), 502
